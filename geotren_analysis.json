@@ -1,0 +1,122 @@
+[
+  {
+    "id": "6c4bdae302747640fd55c10d40|682dc5e105",
+    "lin": "S2",
+    "geo_point_2d": {
+      "lon": 2.090329319863295,
+      "lat": 41.57096545803794
+    },
+    "dir": "A",
+    "origen": "PC",
+    "desti": "PN",
+    "properes_parades": "{\"parada\": \"PN\"}",
+    "estacionat_a": null,
+    "en_hora": "True",
+    "tipus_unitat": "115",
+    "ut": "1f2cc2fd027c",
+    "ocupacio_mi_percent": null,
+    "ocupacio_mi_tram": null,
+    "ocupacio_ri_percent": null,
+    "ocupacio_ri_tram": null,
+    "ocupacio_m1_tram": null,
+    "ocupacio_m1_percent": null,
+    "ocupacio_m2_percent": null,
+    "ocupacio_m2_tram": null
+  },
+  {
+    "id": "6c4bdae302747640fd55c10d40|6a2dc5e10a",
+    "lin": "S1",
+    "geo_point_2d": {
+      "lon": 2.165401496470884,
+      "lat": 41.387193921699655
+    },
+    "dir": "D",
+    "origen": "NA",
+    "desti": "PC",
+    "properes_parades": "{\"parada\": \"PC\"}",
+    "estacionat_a": null,
+    "en_hora": "True",
+    "tipus_unitat": "113",
+    "ut": "1f2cc4fd027d",
+    "ocupacio_mi_percent": "1",
+    "ocupacio_mi_tram": "1",
+    "ocupacio_ri_percent": "2",
+    "ocupacio_ri_tram": "1",
+    "ocupacio_m1_tram": "1",
+    "ocupacio_m1_percent": "9",
+    "ocupacio_m2_percent": "4",
+    "ocupacio_m2_tram": "1"
+  },
+  {
+    "id": "6c4bdae302747640fd55c10d40|6a2dc5e105",
+    "lin": "S1",
+    "geo_point_2d": {
+      "lon": 2.047516768295033,
+      "lat": 41.47618155938744
+    },
+    "dir": "A",
+    "origen": "PC",
+    "desti": "NA",
+    "properes_parades": "{\"parada\": \"RB\"};{\"parada\": \"FN\"};{\"parada\": \"TR\"};{\"parada\": \"VP\"};{\"parada\": \"EN\"};{\"parada\": \"NA\"}",
+    "estacionat_a": "HG",
+    "en_hora": "True",
+    "tipus_unitat": "112",
+    "ut": "1f2cc5fd0376",
+    "ocupacio_mi_percent": "23",
+    "ocupacio_mi_tram": "1",
+    "ocupacio_ri_percent": "23",
+    "ocupacio_ri_tram": "1",
+    "ocupacio_m1_tram": "1",
+    "ocupacio_m1_percent": "23",
+    "ocupacio_m2_percent": "23",
+    "ocupacio_m2_tram": "1"
+  },
+  {
+    "id": "6c4bdae302747640fd55c10d40|682dc5e10a",
+    "lin": "S2",
+    "geo_point_2d": {
+      "lon": 2.130292458626464,
+      "lat": 41.39773957299186
+    },
+    "dir": "D",
+    "origen": "PN",
+    "desti": "PC",
+    "properes_parades": "{\"parada\": \"BN\"};{\"parada\": \"MN\"};{\"parada\": \"SG\"};{\"parada\": \"GR\"};{\"parada\": \"PR\"};{\"parada\": \"PC\"}",
+    "estacionat_a": "TT",
+    "en_hora": "True",
+    "tipus_unitat": "115",
+    "ut": "1f2cc2fd0270",
+    "ocupacio_mi_percent": null,
+    "ocupacio_mi_tram": null,
+    "ocupacio_ri_percent": null,
+    "ocupacio_ri_tram": null,
+    "ocupacio_m1_tram": null,
+    "ocupacio_m1_percent": null,
+    "ocupacio_m2_percent": null,
+    "ocupacio_m2_tram": null
+  },
+  {
+    "id": "6c4bdae302747640fd55c10d40|682dc5e10b",
+    "lin": "S2",
+    "geo_point_2d": {
+      "lon": 2.074559150538554,
+      "lat": 41.439849754465
+    },
+    "dir": "A",
+    "origen": "PC",
+    "desti": "PN",
+    "properes_parades": "{\"parada\": \"LF\"};{\"parada\": \"VD\"};{\"parada\": \"SC\"};{\"parada\": \"VO\"};{\"parada\": \"SJ\"};{\"parada\": \"BT\"};{\"parada\": \"UN\"};{\"parada\": \"SQ\"};{\"parada\": \"CF\"};{\"parada\": \"PJ\"};{\"parada\": \"CT\"};{\"parada\": \"NO\"};{\"parada\": \"PN\"}",
+    "estacionat_a": null,
+    "en_hora": "True",
+    "tipus_unitat": "113",
+    "ut": "1f2cc4fd0270",
+    "ocupacio_mi_percent": "32",
+    "ocupacio_mi_tram": "1",
+    "ocupacio_ri_percent": "33",
+    "ocupacio_ri_tram": "1",
+    "ocupacio_m1_tram": "1",
+    "ocupacio_m1_percent": "18",
+    "ocupacio_m2_percent": "15",
+    "ocupacio_m2_tram": "1"
+  }
+]
