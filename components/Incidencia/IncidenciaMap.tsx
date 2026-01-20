@@ -249,14 +249,19 @@ const IncidenciaMap: React.FC<IncidenciaMapProps> = ({
                         <g
                             key={`${t.id}-${t.torn}`}
                             transform={`translate(${t.x}, ${t.y})`}
-                            className="cursor-pointer transition-all duration-1000 ease-in-out hover:scale-125"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedTrainId(t.realId || t.id); // Prefer distinct real ID
-                            }}
+                            className="transition-transform duration-1000 ease-in-out"
+                            style={{ transitionProperty: 'transform' }} // Ensure only transform is transitioned for position
                         >
-                            <circle r="6" fill={t.color} stroke={t.stroke || "white"} strokeWidth={isGeoTrenEnabled ? 3 : 2} className={`drop-shadow-md animate-in zoom-in spin-in-180 duration-500 ${t.animateClass || (isGeoTrenEnabled ? 'animate-pulse' : '')}`} />
-                            <text y="-8" textAnchor="middle" className="text-[8px] font-black fill-fgc-grey dark:fill-white uppercase drop-shadow-sm">{t.label || t.id}</text>
+                            <g
+                                className="cursor-pointer transition-transform duration-200 hover:scale-125"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedTrainId(t.realId || t.id);
+                                }}
+                            >
+                                <circle r="6" fill={t.color} stroke={t.stroke || "white"} strokeWidth={isGeoTrenEnabled ? 3 : 2} className={`drop-shadow-md ${t.animateClass || (isGeoTrenEnabled ? 'animate-pulse' : '')}`} />
+                                <text y="-8" textAnchor="middle" className="text-[8px] font-black fill-fgc-grey dark:fill-white uppercase drop-shadow-sm">{t.label || t.id}</text>
+                            </g>
                         </g>
                     ))}
                 </svg>

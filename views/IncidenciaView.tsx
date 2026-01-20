@@ -11,6 +11,7 @@ import { useIncidenciaGraph } from '../hooks/useIncidenciaGraph.ts';
 import IncidenciaMapControls from '../components/Incidencia/IncidenciaMapControls.tsx';
 import IncidenciaMap from '../components/Incidencia/IncidenciaMap.tsx';
 import AlternativeServiceOverlay from '../components/Incidencia/AlternativeServiceOverlay.tsx';
+import StationInfoBoard from '../components/Incidencia/StationInfoBoard.tsx';
 import { getShortTornId } from '../utils/incidenciaUtils.ts';
 
 
@@ -1073,6 +1074,15 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
         </div>
       )}
       {altServiceIsland && <AlternativeServiceOverlay islandId={altServiceIsland} onClose={() => setAltServiceIsland(null)} dividedPersonnel={dividedPersonnel || {}} displayMin={displayMin} garageOccupation={garageOccupation} selectedCutSegments={selectedCutSegments} />}
+
+      {/* Feature 6.2: Station Info Board (P.I.B) */}
+      {selectedStation && isGeoTrenEnabled && (
+        <StationInfoBoard
+          stationId={selectedStation}
+          onClose={() => setSelectedStation('')}
+          enrichedGeoTrenData={enrichedGeoTrenData}
+        />
+      )}
 
       {mode === 'INIT' && !loading && (<div className="py-32 text-center opacity-10 flex flex-col items-center"><ShieldAlert size={100} className="text-fgc-grey mb-8" /><p className="text-xl font-black uppercase tracking-[0.4em] text-fgc-grey">Centre de Gestió Operativa</p></div>)}
     </div>

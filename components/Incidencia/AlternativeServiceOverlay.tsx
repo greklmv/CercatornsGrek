@@ -405,10 +405,13 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({ i
                             return true;
                         };
 
-                        if (curr && curr.currentStation === startNode && curr.availableAt <= startT && checkShift(curr)) {
+                        // Allow assigned driver to be used even if not at startNode (assume positioning move)
+                        if (curr && curr.availableAt <= startT && checkShift(curr)) {
                             return curr;
                         }
 
+                        // For new assignments, prefer someone at startNode, but fallback to anyone in pool if desperate?
+                        // For now keep strict for new assignments to avoid teleportation, but maybe relax range?
                         return driverPool.find(d => d.currentStation === startNode && d.availableAt <= startT && checkShift(d));
                     };
 
@@ -424,7 +427,7 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({ i
                         id: `${prefix}A${tripNum.toString().padStart(3, '0')}`,
                         linia: liniaCode,
                         train: unitObj.train.id,
-                        driver: activeDriver.driver || (activeDriver as any).driverName,
+                        driver: activeDriver.driverName ? `${activeDriver.driverSurname || ''}, ${activeDriver.driverName}` : (activeDriver.driver || 'SENSE MAQUINISTA'),
                         torn: activeDriver.torn,
                         shiftStart: (activeDriver as any).shiftStartMin !== undefined ? formatFgcTime((activeDriver as any).shiftStartMin) : '---',
                         shiftEnd: (activeDriver as any).activeShiftEnd !== undefined ? formatFgcTime((activeDriver as any).activeShiftEnd) : '---',
@@ -466,7 +469,7 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({ i
                     id: id,
                     linia: linia,
                     train: t.id,
-                    driver: (driver as any).driver || (driver as any).driverName,
+                    driver: (driver as any).driverName ? `${(driver as any).driverSurname || ''}, ${(driver as any).driverName}` : ((driver as any).driver || 'MAQUINISTA'),
                     torn: (driver as any).torn,
                     shiftStart: '---',
                     shiftEnd: '---',
