@@ -427,7 +427,7 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({ i
                         id: `${prefix}A${tripNum.toString().padStart(3, '0')}`,
                         linia: liniaCode,
                         train: unitObj.train.id,
-                        driver: activeDriver.driverName ? `${activeDriver.driverSurname || ''}, ${activeDriver.driverName}` : (activeDriver.driver || 'SENSE MAQUINISTA'),
+                        driver: (activeDriver as any).driverName ? `${(activeDriver as any).driverSurname || ''}, ${(activeDriver as any).driverName}` : (activeDriver.driver || 'SENSE MAQUINISTA'),
                         torn: activeDriver.torn,
                         shiftStart: (activeDriver as any).shiftStartMin !== undefined ? formatFgcTime((activeDriver as any).shiftStartMin) : '---',
                         shiftEnd: (activeDriver as any).activeShiftEnd !== undefined ? formatFgcTime((activeDriver as any).activeShiftEnd) : '---',
