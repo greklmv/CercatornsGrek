@@ -259,8 +259,14 @@ const IncidenciaMap: React.FC<IncidenciaMapProps> = ({
                                     setSelectedTrainId(t.realId || t.id);
                                 }}
                             >
-                                <circle r="6" fill={t.color} stroke={t.stroke || "white"} strokeWidth={isGeoTrenEnabled ? 3 : 2} className={`drop-shadow-md ${t.animateClass || (isGeoTrenEnabled ? 'animate-pulse' : '')}`} />
-                                <text y="-8" textAnchor="middle" className="text-[8px] font-black fill-fgc-grey dark:fill-white uppercase drop-shadow-sm">{t.label || t.id}</text>
+                                {/* Train Dot */}
+                                <circle r="4" fill={t.color} stroke={t.stroke || "white"} strokeWidth={1.5} className={`drop-shadow-md ${t.animateClass || (isGeoTrenEnabled ? 'animate-pulse' : '')}`} />
+
+                                {/* Label Pill */}
+                                <g transform="translate(0, -14)">
+                                    <rect x="-14" y="-7" width="28" height="14" rx="4" fill={t.color} className="drop-shadow-sm opacity-90" />
+                                    <text y="3" textAnchor="middle" className="text-[9px] font-black fill-white uppercase" style={{ textShadow: '0px 1px 2px rgba(0,0,0,0.3)' }}>{t.label || t.id}</text>
+                                </g>
                             </g>
                         </g>
                     ))}
