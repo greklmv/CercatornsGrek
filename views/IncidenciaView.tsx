@@ -303,23 +303,55 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
     const segments: any[] = [];
     let currentPos = startMin;
     const circs = turn.fullCirculations || [];
+
     circs.forEach((circ: any, index: number) => {
       const cStart = getFgcMinutes(circ.sortida);
       const cEnd = getFgcMinutes(circ.arribada);
       if (cStart !== null && cEnd !== null) {
         if (cStart > currentPos) {
           let locationCode = index === 0 ? (circ.machinistInici || turn.dependencia || '') : (circs[index - 1].machinistFinal || '');
-          segments.push({ start: currentPos, end: cStart, type: 'gap', codi: (locationCode || '').trim().toUpperCase() || 'DESCANS' });
+
+          // Infer track for gap: Prefer next circ start track, or prev circ end track
+          let via = circ.via_inici;
+          if (!via && circ.estacions && circ.estacions.length > 0) via = circ.estacions[0].via;
+
+          if (!via && index > 0) {
+            const prev = circs[index - 1];
+            via = prev.via_final;
+            if (!via && prev.estacions && prev.estacions.length > 0) via = prev.estacions[prev.estacions.length - 1].via;
+          }
+
+          segments.push({ start: currentPos, end: cStart, type: 'gap', codi: (locationCode || '').trim().toUpperCase() || 'DESCANS', via });
         }
         segments.push({ start: cStart, end: cEnd, type: 'circ', codi: circ.codi, train: circ.train });
         currentPos = Math.max(currentPos, cEnd);
       }
     });
+
     if (currentPos < endMin) {
       const lastLoc = circs.length > 0 ? circs[circs.length - 1].machinistFinal : turn.dependencia;
-      segments.push({ start: currentPos, end: endMin, type: 'gap', codi: (lastLoc || '').trim().toUpperCase() || 'FINAL' });
+      let via: string | undefined = undefined;
+      if (circs.length > 0) {
+        const last = circs[circs.length - 1];
+        via = last.via_final;
+        if (!via && last.estacions && last.estacions.length > 0) via = last.estacions[last.estacions.length - 1].via;
+      }
+      segments.push({ start: currentPos, end: endMin, type: 'gap', codi: (lastLoc || '').trim().toUpperCase() || 'FINAL', via });
     }
     return segments;
+  };
+
+  const getPcOffsetY = (viaStr: string | undefined): number => {
+    // Robust parsing: "Via 3" -> 3, "3" -> 3, "V3" -> 3
+    const numStr = viaStr ? String(viaStr).replace(/\D/g, '') : '';
+    const v = parseInt(numStr || '0');
+    // Mapping: V1->+4 (Inbound/V2 align), V2->-4 (Outbound/V1 align), V3->+12, V4->+20, V5->+28
+    if (v === 1) return 4;
+    if (v === 2) return -4;
+    if (v === 3) return 12;
+    if (v === 4) return 20;
+    if (v === 5) return 28;
+    return 4; // Default to Track 1 (Inbound align)
   };
 
   const fetchLiveMapData = async () => {
@@ -435,27 +467,29 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
 
           // If currently moving
           if (startMin !== null && endMin !== null && displayMin >= startMin && displayMin <= endMin) {
-            // ... [Existing Logic for Active Circulation] ...
-            // duplicating simplified version here to keep replacement clean or assuming user didn't want me to rewrite EVERYTHING
-            // But wait, the previous code block was HUGE.
-            // I must make sure I don't delete the logic for rendering the train movement.
-
-            // To be safe and concise, I will restore the logic.
 
             const validStops = estacions
               .map((st: any) => ({
                 nom: resolveStationId(st.nom || st.id, circ.linia),
-                min: getFgcMinutes(st.hora || st.arribada || st.sortida)
+                min: getFgcMinutes(st.hora || st.arribada || st.sortida),
+                via: st.via // Capture stop specific track
               }))
               .filter((s: any) => s.min !== null && s.nom !== null && VALID_STATION_IDS.has(s.nom));
+
+            // Extract via_inici / via_final from circ, or fallback to estacions
+            let viaInici = circ.via_inici;
+            if (!viaInici && estacions.length > 0) viaInici = estacions[0].via;
+
+            let viaFinal = circ.via_final;
+            if (!viaFinal && estacions.length > 0) viaFinal = estacions[estacions.length - 1].via;
 
             const startID = resolveStationId(circ.inici || (estacions[0]?.nom), circ.linia);
             const endID = resolveStationId(circ.final || (estacions[estacions.length - 1]?.nom), circ.linia);
 
             const stopsWithTimes = [
-              { nom: startID, min: startMin },
+              { nom: startID, min: startMin, via: viaInici },
               ...validStops,
-              { nom: endID, min: endMin }
+              { nom: endID, min: endMin, via: viaFinal }
             ]
               .filter(s => VALID_STATION_IDS.has(s.nom))
               .sort((a: any, b: any) => a.min - b.min);
@@ -467,8 +501,12 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
             if (stopsWithTimes.length === 1) {
               const p = stationCoords[currentStationId] || stationCoords['PC'];
               x = p.x; y = p.y;
+              // Single stop track assign
+              if (currentStationId === 'PC' && stopsWithTimes[0].via) {
+                y = p.y + getPcOffsetY(stopsWithTimes[0].via);
+              }
             } else {
-              const expandedStops: { nom: string, min: number }[] = [];
+              const expandedStops: { nom: string, min: number, via?: string }[] = [];
               for (let i = 0; i < stopsWithTimes.length - 1; i++) {
                 const current = stopsWithTimes[i];
                 const next = stopsWithTimes[i + 1];
@@ -476,7 +514,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                 if (path.length > 1) {
                   for (let j = 0; j < path.length - 1; j++) {
                     const ratio = j / (path.length - 1);
-                    expandedStops.push({ nom: path[j], min: current.min + (next.min - current.min) * ratio });
+                    expandedStops.push({ nom: path[j], min: current.min + (next.min - current.min) * ratio, via: j === 0 ? current.via : undefined });
                   }
                 } else expandedStops.push(current);
               }
@@ -489,12 +527,38 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                   currentStationId = s1.nom;
                   const p1 = stationCoords[s1.nom] || stationCoords['PC'];
                   const p2 = stationCoords[s2.nom] || stationCoords['PC'];
+
                   const isMovingRight = (p2.x - p1.x) >= 0;
                   const offset = isMovingRight ? -4 : 4;
-                  if (s1.min === s2.min) { x = p1.x; y = p1.y + offset; } else {
+
+                  if (s1.min === s2.min) {
+                    x = p1.x; y = p1.y + offset;
+                    // Stop specific override for PC
+                    if (s1.nom === 'PC') {
+                      y = p1.y + getPcOffsetY(s1.via);
+                    }
+                  } else {
                     const progress = (displayMin - s1.min) / (s2.min - s1.min);
                     x = p1.x + (p2.x - p1.x) * progress;
                     y = p1.y + (p2.y - p1.y) * progress + offset;
+
+                    // Smooth transition from PC track?
+                    // If departing PC (s1=PC), interpolate from track Y to line Y?
+                    // If arriving PC (s2=PC), interpolate from line Y to track Y?
+                    // For now, let's keep it simple: On line between stations defaults to track offset.
+                    // If user demands perfect animation, we interpolate Y offsets.
+
+                    if (s1.nom === 'PC') {
+                      const startYOffset = getPcOffsetY(s1.via);
+                      const endYOffset = offset; // Segment line default
+                      const interpOffset = startYOffset + (endYOffset - startYOffset) * progress;
+                      y = p1.y + (p2.y - p1.y) * progress + interpOffset;
+                    } else if (s2.nom === 'PC') {
+                      const startYOffset = offset;
+                      const endYOffset = getPcOffsetY(s2.via);
+                      const interpOffset = startYOffset + (endYOffset - startYOffset) * progress;
+                      y = p1.y + (p2.y - p1.y) * progress + interpOffset;
+                    }
                   }
                   break;
                 }
@@ -506,10 +570,13 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
             const driverPhones = allPhones?.find(p => p.nomina === assignment?.empleat_id)?.phones || [];
 
             if (manualOverrides[codi]) {
-              // ... (Manual overrides logic retained in full code, but omitted here for brevity? NO, must include it to be safe)
-              // Actually I can't omit it because I'm replacing the whole block.
               const overrideStation = manualOverrides[codi];
               const overrideCoords = stationCoords[overrideStation] || { x: 0, y: 0 };
+              let customY = overrideCoords.y - 4;
+              if (overrideStation === 'PC') {
+                // Assume Track 1 for overrides unless specified... hard to guess via for overrides
+                customY = overrideCoords.y + 4; // Track 1 default
+              }
               currentPersonnel.push({
                 type: 'TRAIN', id: (circ as any).id as string, linia: (circ as any).linia as string,
                 stationId: overrideStation, color: getLiniaColorHex((codi.startsWith('F') ? 'F' : (circ as any).linia) as string),
@@ -520,7 +587,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                 shiftEndMin: getFgcMinutes(shift.final_torn) || 0,
                 shiftDep: resolveStationId(shift.dependencia || '', shiftService),
                 phones: driverPhones, inici: (circ as any).inici, final: (circ as any).final,
-                horaPas: formatFgcTime(displayMin), x: overrideCoords.x, y: overrideCoords.y - 4
+                horaPas: formatFgcTime(displayMin), x: overrideCoords.x, y: customY
               });
               processedKeys.add(codi);
               return;
@@ -563,10 +630,12 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
 
             let rawLoc = (shift.dependencia || '').trim().toUpperCase();
             let isStationaryTrain = false;
+            let gapVia: string | undefined = undefined;
 
             if (currentSeg && currentSeg.type === 'gap') {
               rawLoc = (currentSeg.codi || '').trim().toUpperCase();
-              isStationaryTrain = true; // Drivers in gaps are typically in the train or at the platform
+              isStationaryTrain = true;
+              gapVia = currentSeg.via;
             }
 
             const loc = resolveStationId(rawLoc, shiftService);
@@ -575,8 +644,11 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
               const driverPhones = allPhones?.find(p => p.nomina === (assignment as any).empleat_id)?.phones || [];
               const coords = stationCoords[loc] || { x: 0, y: 0 };
 
-              // CRITICAL FIX: Classify as TRAIN if it's a stationary train gap, so it appears on the map
-              // But giving it ID 'DESCANS' might be confusing. Let's use 'SIT' or the gap code.
+              let yPos = coords.y - (isStationaryTrain ? 4 : 0);
+              if (loc === 'PC' && isStationaryTrain) {
+                yPos = coords.y + getPcOffsetY(gapVia);
+              }
+
               currentPersonnel.push({
                 type: isStationaryTrain ? 'TRAIN' : 'REST',
                 id: isStationaryTrain ? 'EST' : 'DESCANS',
@@ -592,8 +664,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                 shiftDep: resolveStationId(shift.dependencia || '', shiftService),
                 phones: driverPhones,
                 inici: loc, final: loc, horaPas: formatFgcTime(displayMin),
-                x: coords.x, y: coords.y - (isStationaryTrain ? 4 : 0), // Offset if train
-                label: isStationaryTrain ? 'EST' : undefined // Label for map
+                x: coords.x, y: yPos,
+                label: isStationaryTrain ? (gapVia ? `E${gapVia.replace(/\D/g, '')}` : 'EST') : undefined
               });
             }
           }
@@ -610,6 +682,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
       setLiveData(offsetData);
     } catch (e) { console.error("Error live map:", e); } finally { setLoading(false); }
   };
+
+
 
   useEffect(() => { if (mode === 'LINIA') fetchLiveMapData(); }, [mode, displayMin, selectedServei, manualOverrides]);
 
@@ -941,7 +1015,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
             </div>
           )}
           {mode === 'LINIA' && (
-            <div className="max-w-7xl mx-auto">
+            <div className="w-full">
               <IncidenciaMap
                 isRealTime={isRealTime}
                 setIsRealTime={setIsRealTime}

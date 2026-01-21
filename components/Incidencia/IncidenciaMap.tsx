@@ -101,7 +101,7 @@ const IncidenciaMap: React.FC<IncidenciaMapProps> = ({
             y: station.y + yOffset,
             label: t.deducedCirculationId || t.tipus_unitat || '?'
         };
-    }).filter(Boolean) : liveData.filter(p => p.type === 'TRAIN').map(p => {
+    }).filter(Boolean).filter(t => !t!.id.startsWith('EST')) : liveData.filter(p => p.type === 'TRAIN' && !p.id.startsWith('EST')).map(p => {
         const status = manualOverrides[p.id] || 'OK';
         let color = p.color;
         let stroke = "white";
@@ -117,7 +117,7 @@ const IncidenciaMap: React.FC<IncidenciaMapProps> = ({
 
 
     return (
-        <div className="bg-white dark:bg-black/40 rounded-[40px] p-6 sm:p-10 border border-gray-100 dark:border-white/5 relative flex flex-col transition-colors shadow-sm">
+        <div className="bg-white dark:bg-black/40 rounded-none sm:rounded-[24px] p-2 sm:p-4 border-0 sm:border border-gray-100 dark:border-white/5 relative flex flex-col transition-colors shadow-none sm:shadow-sm w-full h-[85vh]">
             <IncidenciaMapControls
                 isRealTime={isRealTime}
                 setIsRealTime={setIsRealTime}
@@ -131,161 +131,211 @@ const IncidenciaMap: React.FC<IncidenciaMapProps> = ({
             />
 
             {(selectedCutStations.size > 0 || selectedCutSegments.size > 0) && (
-                <button onClick={clearAllCuts} className="text-[10px] font-black text-red-500 uppercase flex items-center gap-2 bg-red-50 dark:bg-red-950/30 px-4 py-2.5 rounded-xl hover:scale-105 transition-all shadow-sm border border-red-100 dark:border-red-900/40 animate-in fade-in zoom-in-95">
-                    <Scissors size={14} /> Anul·lar Talls ({selectedCutStations.size + selectedCutSegments.size})
-                </button>
+                <div className="flex justify-end px-2 mb-2">
+                    <button onClick={clearAllCuts} className="text-[10px] font-black text-red-500 uppercase flex items-center gap-2 bg-red-50 dark:bg-red-950/30 px-4 py-2.5 rounded-xl hover:scale-105 transition-all shadow-sm border border-red-100 dark:border-red-900/40 animate-in fade-in zoom-in-95">
+                        <Scissors size={14} /> Anul·lar Talls ({selectedCutStations.size + selectedCutSegments.size})
+                    </button>
+                </div>
             )}
 
-            <div className="overflow-x-auto custom-scrollbar pb-10 -mx-4 px-4 select-none">
-                <svg viewBox="0 0 750 220" className="min-w-[800px] h-auto overflow-visible">
-                    {MAP_SEGMENTS.map((seg, i) => {
-                        const s1 = MAP_STATIONS.find(s => s.id === (seg as any).from)!;
-                        const s2 = MAP_STATIONS.find(s => s.id === (seg as any).to)!;
-                        if (!s1 || !s2) return null;
+            <div className="flex-1 overflow-hidden flex items-center justify-center bg-gray-50/50 dark:bg-black/20 rounded-2xl mt-2 relative min-h-[500px]">
+                <div className="w-full h-full overflow-auto custom-scrollbar p-2 flex items-center justify-center">
+                    <svg viewBox="0 0 750 250" className="w-full h-full overflow-visible" preserveAspectRatio="xMidYMid meet">
+                        {MAP_SEGMENTS.map((seg, i) => {
+                            const s1 = MAP_STATIONS.find(s => s.id === (seg as any).from)!;
+                            const s2 = MAP_STATIONS.find(s => s.id === (seg as any).to)!;
+                            if (!s1 || !s2) return null;
 
-                        const isV1Blocked = selectedCutSegments.has(`${s1.id}-${s2.id}-V1`) || selectedCutSegments.has(`${s2.id}-${s1.id}-V1`);
-                        const isV2Blocked = selectedCutSegments.has(`${s1.id}-${s2.id}-V2`) || selectedCutSegments.has(`${s2.id}-${s1.id}-V2`);
+                            const isV1Blocked = selectedCutSegments.has(`${s1.id}-${s2.id}-V1`) || selectedCutSegments.has(`${s2.id}-${s1.id}-V1`);
+                            const isV2Blocked = selectedCutSegments.has(`${s1.id}-${s2.id}-V2`) || selectedCutSegments.has(`${s2.id}-${s1.id}-V2`);
 
-                        const dx = s2.x - s1.x;
-                        const dy = s2.y - s1.y;
-                        const len = Math.sqrt(dx * dx + dy * dy);
-                        const nx = -dy / len;
-                        const ny = dx / len;
-                        const offset = 4;
+                            // Custom Render for PC-PR Schema
+                            if (s1.id === 'PC' && s2.id === 'PR') {
+                                return (
+                                    <g key={`seg-${i}-custom-pc`}>
+                                        {/* --- SEGMENT LINES (Clickable for Cuts) --- */}
+                                        {/* V2 (Inbound to PC) - Bottom Line in Segment */}
+                                        <line
+                                            x1={s1.x} y1={s1.y + 4}
+                                            x2={s2.x} y2={s2.y + 4}
+                                            stroke={isV2Blocked ? "#ef4444" : "#A4A7AB"} strokeWidth="4" strokeLinecap="round"
+                                            className={`cursor-pointer transition-all duration-300 ${isV2Blocked ? 'opacity-100' : 'opacity-40 hover:opacity-100 hover:stroke-blue-400'}`}
+                                            onClick={() => toggleTrackCut(s1.id, s2.id, 2)}
+                                        />
+                                        {/* V1 (Outbound from PC) - Top Line in Segment */}
+                                        <line
+                                            x1={s1.x} y1={s1.y - 4}
+                                            x2={s2.x} y2={s2.y - 4}
+                                            stroke={isV1Blocked ? "#ef4444" : "#A4A7AB"} strokeWidth="4" strokeLinecap="round"
+                                            className={`cursor-pointer transition-all duration-300 ${isV1Blocked ? 'opacity-100' : 'opacity-40 hover:opacity-100 hover:stroke-blue-400'}`}
+                                            onClick={() => toggleTrackCut(s1.id, s2.id, 1)}
+                                        />
 
-                        return (
-                            <g key={`seg-${i}`}>
-                                <line
-                                    x1={s1.x + nx * offset} y1={s1.y + ny * offset}
-                                    x2={s2.x + nx * offset} y2={s2.y + ny * offset}
-                                    stroke={isV2Blocked ? "#ef4444" : "#A4A7AB"} strokeWidth="4" strokeLinecap="round"
-                                    className={`cursor-pointer transition-all duration-300 ${isV2Blocked ? 'opacity-100' : 'opacity-40 hover:opacity-100 hover:stroke-blue-400'}`}
-                                    onClick={() => toggleTrackCut(s1.id, s2.id, 2)}
-                                />
-                                <line
-                                    x1={s1.x - nx * offset} y1={s1.y - ny * offset}
-                                    x2={s2.x - nx * offset} y2={s2.y - ny * offset}
-                                    stroke={isV1Blocked ? "#ef4444" : "#A4A7AB"} strokeWidth="4" strokeLinecap="round"
-                                    className={`cursor-pointer transition-all duration-300 ${isV1Blocked ? 'opacity-100' : 'opacity-40 hover:opacity-100 hover:stroke-blue-400'}`}
-                                    onClick={() => toggleTrackCut(s1.id, s2.id, 1)}
-                                />
-                            </g>
-                        );
-                    })}
+                                        {/* --- PC STATION TRACK STUBS (Visual Only) --- */}
+                                        {/* Track 1: Continuation of V2 (Inbound) [y=104 -> y=104] */}
+                                        <line x1={s1.x - 40} y1={s1.y + 4} x2={s1.x} y2={s1.y + 4} stroke="#A4A7AB" strokeWidth="4" strokeLinecap="round" className="opacity-40" />
+                                        <text x={s1.x - 45} y={s1.y + 6} className="text-[8px] fill-gray-500 font-black font-mono">1</text>
 
-                    {MAP_STATIONS.map(st => {
-                        const isCut = selectedCutStations.has(st.id);
-                        const restHere = groupedRestPersonnel[st.id] || [];
-                        const count = restHere.length;
-                        const isUpper = st.y < 100;
+                                        {/* Track 2: Continuation of V1 (Outbound) [y=96 -> y=96] */}
+                                        <line x1={s1.x - 40} y1={s1.y - 4} x2={s1.x} y2={s1.y - 4} stroke="#A4A7AB" strokeWidth="4" strokeLinecap="round" className="opacity-40" />
+                                        <text x={s1.x - 45} y={s1.y - 2} className="text-[8px] fill-gray-500 font-black font-mono">2</text>
 
-                        return (
-                            <g key={st.id} className="group">
-                                <rect
-                                    x={st.x - 3} y={st.y - 11} width="6" height="22" rx="3"
-                                    fill="white" stroke={isCut ? "#ef4444" : "#53565A"} strokeWidth="1.5"
-                                    className="transition-all duration-300"
-                                />
-                                {count > 0 && !isCut && (
-                                    <g onClick={() => setSelectedRestLocation(selectedRestLocation === st.id ? null : st.id)} className="cursor-pointer transition-colors">
-                                        <circle cx={st.x} cy={st.y + (isUpper ? -32 : 44)} r={count > 1 ? 7 : 4} fill={count > 1 ? "#3b82f6" : "#8EDE00"} className="shadow-md" stroke="white" strokeWidth="1.5" />
-                                        {count > 1 && (<text x={st.x} y={st.y + (isUpper ? -29.5 : 46.5)} textAnchor="middle" fill="white" className="text-[7px] font-black pointer-events-none">{count}</text>)}
+                                        {/* Track 3: Parallel Down [y=112], connects to V2 Inbound point (20, 104) */}
+                                        <path d={`M ${s1.x - 40} ${s1.y + 12} L ${s1.x - 10} ${s1.y + 12} L ${s1.x} ${s1.y + 4}`} fill="none" stroke="#A4A7AB" strokeWidth="4" strokeLinecap="round" className="opacity-40" />
+                                        <text x={s1.x - 45} y={s1.y + 14} className="text-[8px] fill-gray-500 font-black font-mono">3</text>
+
+                                        {/* Track 4: Parallel Down [y=120], connects to V2 Inbound point (20, 104) */}
+                                        <path d={`M ${s1.x - 40} ${s1.y + 20} L ${s1.x - 10} ${s1.y + 20} L ${s1.x} ${s1.y + 4}`} fill="none" stroke="#A4A7AB" strokeWidth="4" strokeLinecap="round" className="opacity-40" />
+                                        <text x={s1.x - 45} y={s1.y + 22} className="text-[8px] fill-gray-500 font-black font-mono">4</text>
+
+                                        {/* Track 5: Parallel Down [y=128], connects to V2 Inbound point (20, 104) */}
+                                        <path d={`M ${s1.x - 40} ${s1.y + 28} L ${s1.x - 10} ${s1.y + 28} L ${s1.x} ${s1.y + 4}`} fill="none" stroke="#A4A7AB" strokeWidth="4" strokeLinecap="round" className="opacity-40" />
+                                        <text x={s1.x - 45} y={s1.y + 30} className="text-[8px] fill-gray-500 font-black font-mono">5</text>
                                     </g>
-                                )}
-                                <text
-                                    x={st.x} y={st.y + (isUpper ? -16 : 28)}
-                                    textAnchor="middle"
-                                    onClick={() => toggleStationCut(st.id)}
-                                    className={`text-[9px] font-black select-none cursor-pointer transition-colors duration-300 hover:underline ${isCut ? 'fill-red-500' : 'fill-gray-400 dark:fill-gray-500 hover:fill-fgc-grey'}`}
-                                >
-                                    {st.id}
-                                </text>
-                            </g>
-                        );
-                    })}
+                                );
+                            }
 
-                    {/* Garage Occupation Visualization */}
-                    {GARAGE_PLAN.map(g => {
-                        const station = MAP_STATIONS.find(s => s.id === g.stationId);
-                        if (!station) return null;
+                            const dx = s2.x - s1.x;
+                            const dy = s2.y - s1.y;
+                            const len = Math.sqrt(dx * dx + dy * dy);
+                            const nx = -dy / len;
+                            const ny = dx / len;
+                            const offset = 4;
 
-                        const occupied = garageOccupation[g.stationId] || 0;
-                        const capacity = g.capacityDuringService;
-                        const percentage = Math.min(100, (occupied / capacity) * 100);
-                        const isFull = occupied >= capacity;
+                            return (
+                                <g key={`seg-${i}`}>
+                                    <line
+                                        x1={s1.x + nx * offset} y1={s1.y + ny * offset}
+                                        x2={s2.x + nx * offset} y2={s2.y + ny * offset}
+                                        stroke={isV2Blocked ? "#ef4444" : "#A4A7AB"} strokeWidth="4" strokeLinecap="round"
+                                        className={`cursor-pointer transition-all duration-300 ${isV2Blocked ? 'opacity-100' : 'opacity-40 hover:opacity-100 hover:stroke-blue-400'}`}
+                                        onClick={() => toggleTrackCut(s1.id, s2.id, 2)}
+                                    />
+                                    <line
+                                        x1={s1.x - nx * offset} y1={s1.y - ny * offset}
+                                        x2={s2.x - nx * offset} y2={s2.y - ny * offset}
+                                        stroke={isV1Blocked ? "#ef4444" : "#A4A7AB"} strokeWidth="4" strokeLinecap="round"
+                                        className={`cursor-pointer transition-all duration-300 ${isV1Blocked ? 'opacity-100' : 'opacity-40 hover:opacity-100 hover:stroke-blue-400'}`}
+                                        onClick={() => toggleTrackCut(s1.id, s2.id, 1)}
+                                    />
+                                </g>
+                            );
+                        })}
 
-                        // Render vertical bar next to station
-                        const barHeight = 22; // Same as station rect
-                        const barWidth = 4;
-                        const xPos = station.x + 8; // Offset to right
-                        const yPos = station.y - 11;
+                        {MAP_STATIONS.map(st => {
+                            const isCut = selectedCutStations.has(st.id);
+                            const restHere = groupedRestPersonnel[st.id] || [];
+                            const count = restHere.length;
+                            const isUpper = st.y < 100;
 
-                        return (
-                            <g key={`garage-${g.stationId}`} className="group/garage pointer-events-none">
-                                {/* Background container */}
-                                <rect x={xPos} y={yPos} width={barWidth} height={barHeight} rx={1} fill="#e5e7eb" stroke="#d1d5db" strokeWidth="0.5" />
-                                {/* Fill based on occupation (inverted - fill from bottom) */}
-                                <rect
-                                    x={xPos}
-                                    y={yPos + barHeight - (barHeight * (percentage / 100))}
-                                    width={barWidth}
-                                    height={barHeight * (percentage / 100)}
-                                    rx={1}
-                                    fill={isFull ? "#ef4444" : "#22c55e"}
-                                    className="transition-all duration-500"
-                                />
-                                {/* Tooltip on hover (via group) */}
-                                <g className="opacity-0 group-hover/garage:opacity-100 transition-opacity">
-                                    <rect x={xPos + 10} y={yPos} width="50" height="14" rx="4" fill="black" fillOpacity="0.8" />
-                                    <text x={xPos + 35} y={yPos + 10} textAnchor="middle" fill="white" className="text-[9px] font-bold">
-                                        {occupied} / {capacity}
+                            return (
+                                <g key={st.id} className="group">
+                                    <rect
+                                        x={st.x - 3} y={st.y - 11} width="6" height="22" rx="3"
+                                        fill="white" stroke={isCut ? "#ef4444" : "#53565A"} strokeWidth="1.5"
+                                        className="transition-all duration-300"
+                                    />
+                                    {count > 0 && !isCut && (
+                                        <g onClick={() => setSelectedRestLocation(selectedRestLocation === st.id ? null : st.id)} className="cursor-pointer transition-colors">
+                                            <circle cx={st.x} cy={st.y + (isUpper ? -32 : 44)} r={count > 1 ? 7 : 4} fill={count > 1 ? "#3b82f6" : "#8EDE00"} className="shadow-md" stroke="white" strokeWidth="1.5" />
+                                            {count > 1 && (<text x={st.x} y={st.y + (isUpper ? -29.5 : 46.5)} textAnchor="middle" fill="white" className="text-[7px] font-black pointer-events-none">{count}</text>)}
+                                        </g>
+                                    )}
+                                    <text
+                                        x={st.x} y={st.y + (isUpper ? -16 : (st.id === 'PC' ? 45 : 28))}
+                                        textAnchor="middle"
+                                        onClick={() => toggleStationCut(st.id)}
+                                        className={`text-[9px] font-black select-none cursor-pointer transition-colors duration-300 hover:underline ${isCut ? 'fill-red-500' : 'fill-gray-400 dark:fill-gray-500 hover:fill-fgc-grey'}`}
+                                    >
+                                        {st.id}
                                     </text>
                                 </g>
-                            </g>
-                        );
-                    })}
+                            );
+                        })}
 
-                    {showedTrains.map((t: any) => (
-                        <g
-                            key={`${t.id}-${t.torn}`}
-                            transform={`translate(${t.x}, ${t.y})`}
-                            className="transition-transform duration-1000 ease-in-out"
-                            style={{ transitionProperty: 'transform' }} // Ensure only transform is transitioned for position
-                        >
+                        {/* Garage Occupation Visualization */}
+                        {GARAGE_PLAN.map(g => {
+                            const station = MAP_STATIONS.find(s => s.id === g.stationId);
+                            if (!station) return null;
+
+                            const occupied = garageOccupation[g.stationId] || 0;
+                            const capacity = g.capacityDuringService;
+                            const percentage = Math.min(100, (occupied / capacity) * 100);
+                            const isFull = occupied >= capacity;
+
+                            // Render vertical bar next to station
+                            const barHeight = 22; // Same as station rect
+                            const barWidth = 4;
+                            const xPos = station.x + 8; // Offset to right
+                            const yPos = station.y - 11;
+
+                            return (
+                                <g key={`garage-${g.stationId}`} className="group/garage pointer-events-none">
+                                    {/* Background container */}
+                                    <rect x={xPos} y={yPos} width={barWidth} height={barHeight} rx={1} fill="#e5e7eb" stroke="#d1d5db" strokeWidth="0.5" />
+                                    {/* Fill based on occupation (inverted - fill from bottom) */}
+                                    <rect
+                                        x={xPos}
+                                        y={yPos + barHeight - (barHeight * (percentage / 100))}
+                                        width={barWidth}
+                                        height={barHeight * (percentage / 100)}
+                                        rx={1}
+                                        fill={isFull ? "#ef4444" : "#22c55e"}
+                                        className="transition-all duration-500"
+                                    />
+                                    {/* Tooltip on hover (via group) */}
+                                    <g className="opacity-0 group-hover/garage:opacity-100 transition-opacity">
+                                        <rect x={xPos + 10} y={yPos} width="50" height="14" rx="4" fill="black" fillOpacity="0.8" />
+                                        <text x={xPos + 35} y={yPos + 10} textAnchor="middle" fill="white" className="text-[9px] font-bold">
+                                            {occupied} / {capacity}
+                                        </text>
+                                    </g>
+                                </g>
+                            );
+                        })}
+
+                        {showedTrains.map((t: any) => (
                             <g
-                                className="cursor-pointer transition-transform duration-200 hover:scale-125"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedTrainId(t.realId || t.id);
-                                }}
+                                key={`${t.id}-${t.torn}`}
+                                transform={`translate(${t.x}, ${t.y})`}
+                                className="transition-transform duration-1000 ease-in-out"
+                                style={{ transitionProperty: 'transform' }} // Ensure only transform is transitioned for position
                             >
-                                {/* Train Dot */}
-                                <circle r="4" fill={t.color} stroke={t.stroke || "white"} strokeWidth={1.5} className={`drop-shadow-md ${t.animateClass || (isGeoTrenEnabled ? 'animate-pulse' : '')}`} />
+                                <g
+                                    className="cursor-pointer transition-transform duration-200 hover:scale-125"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedTrainId(t.realId || t.id);
+                                    }}
+                                >
+                                    {/* Train Dot */}
+                                    <circle r="4" fill={t.color} stroke={t.stroke || "white"} strokeWidth={1.5} className={`drop-shadow-md ${t.animateClass || (isGeoTrenEnabled ? 'animate-pulse' : '')}`} />
 
-                                {/* Label Pill */}
-                                <g transform="translate(0, -14)">
-                                    <rect x="-14" y="-7" width="28" height="14" rx="4" fill={t.color} className="drop-shadow-sm opacity-90" />
-                                    <text y="3" textAnchor="middle" className="text-[9px] font-black fill-white uppercase" style={{ textShadow: '0px 1px 2px rgba(0,0,0,0.3)' }}>{t.label || t.id}</text>
+                                    {/* Label Pill */}
+                                    <g transform="translate(0, -14)">
+                                        <rect x="-14" y="-7" width="28" height="14" rx="4" fill={t.color} className="drop-shadow-sm opacity-90" />
+                                        <text y="3" textAnchor="middle" className="text-[9px] font-black fill-white uppercase" style={{ textShadow: '0px 1px 2px rgba(0,0,0,0.3)' }}>{t.label || t.id}</text>
+                                    </g>
                                 </g>
                             </g>
-                        </g>
-                    ))}
-                </svg>
+                        ))}
+                    </svg>
 
-                {/* Train Control Popup */}
-                {selectedTrainId && (
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-900 p-4 rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 z-[150] animate-in zoom-in fade-in flex flex-col gap-3 min-w-[200px]">
-                        <div className="flex justify-between items-center border-b border-gray-100 dark:border-white/5 pb-2">
-                            <h4 className="font-black text-xs uppercase text-fgc-grey dark:text-white">Tren {selectedTrainId}</h4>
-                            <button onClick={() => setSelectedTrainId(null)} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
+                    {/* Train Control Popup */}
+                    {selectedTrainId && (
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-900 p-4 rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 z-[150] animate-in zoom-in fade-in flex flex-col gap-3 min-w-[200px]">
+                            <div className="flex justify-between items-center border-b border-gray-100 dark:border-white/5 pb-2">
+                                <h4 className="font-black text-xs uppercase text-fgc-grey dark:text-white">Tren {selectedTrainId}</h4>
+                                <button onClick={() => setSelectedTrainId(null)} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
+                            </div>
+                            <div className="grid grid-cols-1 gap-2">
+                                <button onClick={() => { setManualOverrides({ ...manualOverrides, [selectedTrainId]: 'AVERIAT' }); setSelectedTrainId(null); }} className="flex items-center gap-2 p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold transition-colors"><AlertCircle size={14} /> AVERIAT</button>
+                                <button onClick={() => { setManualOverrides({ ...manualOverrides, [selectedTrainId]: 'RETARD' }); setSelectedTrainId(null); }} className="flex items-center gap-2 p-2 rounded-xl bg-yellow-50 hover:bg-yellow-100 text-yellow-600 text-xs font-bold transition-colors"><Clock size={14} /> RETARD</button>
+                                <button onClick={() => { const n = { ...manualOverrides }; delete n[selectedTrainId]; setManualOverrides(n); setSelectedTrainId(null); }} className="flex items-center gap-2 p-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-500 text-xs font-bold transition-colors"><CheckCircle2 size={14} /> NORMAL (OK)</button>
+                            </div>
                         </div>
-                        <div className="grid grid-cols-1 gap-2">
-                            <button onClick={() => { setManualOverrides({ ...manualOverrides, [selectedTrainId]: 'AVERIAT' }); setSelectedTrainId(null); }} className="flex items-center gap-2 p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold transition-colors"><AlertCircle size={14} /> AVERIAT</button>
-                            <button onClick={() => { setManualOverrides({ ...manualOverrides, [selectedTrainId]: 'RETARD' }); setSelectedTrainId(null); }} className="flex items-center gap-2 p-2 rounded-xl bg-yellow-50 hover:bg-yellow-100 text-yellow-600 text-xs font-bold transition-colors"><Clock size={14} /> RETARD</button>
-                            <button onClick={() => { const n = { ...manualOverrides }; delete n[selectedTrainId]; setManualOverrides(n); setSelectedTrainId(null); }} className="flex items-center gap-2 p-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-500 text-xs font-bold transition-colors"><CheckCircle2 size={14} /> NORMAL (OK)</button>
-                        </div>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
 
             {selectedRestLocation && groupedRestPersonnel[selectedRestLocation] && (
