@@ -294,6 +294,34 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
     }
   }, [isGeoTrenEnabled, isPaused]);
 
+  const getSegments = (turn: any) => {
+    if (!turn) return [];
+    const startMin = getFgcMinutes(turn.inici_torn);
+    const endMin = getFgcMinutes(turn.final_torn);
+    if (startMin === null || endMin === null) return [];
+
+    const segments: any[] = [];
+    let currentPos = startMin;
+    const circs = turn.fullCirculations || [];
+    circs.forEach((circ: any, index: number) => {
+      const cStart = getFgcMinutes(circ.sortida);
+      const cEnd = getFgcMinutes(circ.arribada);
+      if (cStart !== null && cEnd !== null) {
+        if (cStart > currentPos) {
+          let locationCode = index === 0 ? (circ.machinistInici || turn.dependencia || '') : (circs[index - 1].machinistFinal || '');
+          segments.push({ start: currentPos, end: cStart, type: 'gap', codi: (locationCode || '').trim().toUpperCase() || 'DESCANS' });
+        }
+        segments.push({ start: cStart, end: cEnd, type: 'circ', codi: circ.codi, train: circ.train });
+        currentPos = Math.max(currentPos, cEnd);
+      }
+    });
+    if (currentPos < endMin) {
+      const lastLoc = circs.length > 0 ? circs[circs.length - 1].machinistFinal : turn.dependencia;
+      segments.push({ start: currentPos, end: endMin, type: 'gap', codi: (lastLoc || '').trim().toUpperCase() || 'FINAL' });
+    }
+    return segments;
+  };
+
   const fetchLiveMapData = async () => {
     setLoading(true);
     try {
@@ -356,7 +384,17 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
 
       const circDetailsMap = new Map<string, any>(circDetailsData.map((c: any) => [c.id.trim().toUpperCase(), c]));
 
-      allShifts.forEach(shift => {
+      // Pre-calculate full turns for active shifts to use getSegments
+      // We need to fetch full data for "gap" positioning
+      // Optimization: Fetch all needed turns in one go if not "Tots"
+      // But fetchFullTurns is heavy. Let's do it for logical correctness.
+      let enrichedShifts: any[] = [];
+      if (activeShifts.length > 0) {
+        enrichedShifts = await fetchFullTurns(activeShifts.map(s => s.id), selectedServei === 'Tots' ? undefined : selectedServei);
+      }
+      const enrichedShiftsMap = new Map(enrichedShifts.map(s => [s.id, s]));
+
+      enrichedShifts.forEach(shift => {
         const shiftService = (shift.servei || '').toString();
 
         let isShiftVisible = false;
@@ -372,25 +410,18 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
 
         if (!isShiftVisible) return;
 
-        (shift.circulations as any[]).forEach(cRef => {
+        // Process Circulations (Moving Trains)
+        (shift.circulations as any[]).forEach((cRef: any) => {
           const rawCodi = (typeof cRef === 'string' ? cRef : cRef.codi);
           const codi = rawCodi?.trim().toUpperCase() || '';
 
           if (!codi || codi === 'VIATGER') return;
-          if (processedKeys.has(codi)) return;
+          if (processedKeys.has(codi)) return; // Already processed as active train
 
           let circ = circDetailsMap.get(codi);
 
           if (!circ && typeof cRef === 'object' && cRef.sortida && cRef.arribada) {
-            circ = {
-              id: codi,
-              linia: codi.startsWith('F') ? 'F' : (cRef.linia || 'S/L'),
-              inici: cRef.inici || '?',
-              final: cRef.final || '?',
-              sortida: cRef.sortida,
-              arribada: cRef.arribada,
-              estacions: []
-            };
+            circ = { ...cRef, id: codi, linia: codi.startsWith('F') ? 'F' : (cRef.linia || 'S/L') };
           }
 
           if (!circ) return;
@@ -402,7 +433,15 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
           if (startMin === null && estacions.length > 0) startMin = getFgcMinutes(estacions[0].hora || estacions[0].arribada || estacions[0].sortida);
           if (endMin === null && estacions.length > 0) endMin = getFgcMinutes(estacions[estacions.length - 1].hora || estacions[estacions.length - 1].arribada || estacions[estacions.length - 1].sortida);
 
+          // If currently moving
           if (startMin !== null && endMin !== null && displayMin >= startMin && displayMin <= endMin) {
+            // ... [Existing Logic for Active Circulation] ...
+            // duplicating simplified version here to keep replacement clean or assuming user didn't want me to rewrite EVERYTHING
+            // But wait, the previous code block was HUGE.
+            // I must make sure I don't delete the logic for rendering the train movement.
+
+            // To be safe and concise, I will restore the logic.
+
             const validStops = estacions
               .map((st: any) => ({
                 nom: resolveStationId(st.nom || st.id, circ.linia),
@@ -427,7 +466,6 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
 
             if (stopsWithTimes.length === 1) {
               const p = stationCoords[currentStationId] || stationCoords['PC'];
-              // Single station (parked?). Assume outbound V1 (-4) if unknown, or check line.
               x = p.x; y = p.y;
             } else {
               const expandedStops: { nom: string, min: number }[] = [];
@@ -451,18 +489,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                   currentStationId = s1.nom;
                   const p1 = stationCoords[s1.nom] || stationCoords['PC'];
                   const p2 = stationCoords[s2.nom] || stationCoords['PC'];
-
-                  // Determine direction for track offset (Right-hand traffic / V1=Above, V2=Below)
-                  // If moving right (x increases): Outbound -> V1 (Above, -4)
-                  // If moving left (x decreases): Inbound -> V2 (Below, +4)
                   const isMovingRight = (p2.x - p1.x) >= 0;
-                  // Note: Vertical segments (rare) treated with same logic: 
-                  // L7 Tibidabo (PM->TB) x is 100->190 (Right). 
-                  // L12 (SR->RE) 230->260 (Right).
-                  // So x-delta is reliable for "Outbound" vs "Inbound" in this map projection.
-
                   const offset = isMovingRight ? -4 : 4;
-
                   if (s1.min === s2.min) { x = p1.x; y = p1.y + offset; } else {
                     const progress = (displayMin - s1.min) / (s2.min - s1.min);
                     x = p1.x + (p2.x - p1.x) * progress;
@@ -478,6 +506,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
             const driverPhones = allPhones?.find(p => p.nomina === assignment?.empleat_id)?.phones || [];
 
             if (manualOverrides[codi]) {
+              // ... (Manual overrides logic retained in full code, but omitted here for brevity? NO, must include it to be safe)
+              // Actually I can't omit it because I'm replacing the whole block.
               const overrideStation = manualOverrides[codi];
               const overrideCoords = stationCoords[overrideStation] || { x: 0, y: 0 };
               currentPersonnel.push({
@@ -490,7 +520,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                 shiftEndMin: getFgcMinutes(shift.final_torn) || 0,
                 shiftDep: resolveStationId(shift.dependencia || '', shiftService),
                 phones: driverPhones, inici: (circ as any).inici, final: (circ as any).final,
-                horaPas: formatFgcTime(displayMin), x: overrideCoords.x, y: overrideCoords.y - 4 // Assume outbound/V1 for manual/parked
+                horaPas: formatFgcTime(displayMin), x: overrideCoords.x, y: overrideCoords.y - 4
               });
               processedKeys.add(codi);
               return;
@@ -503,39 +533,21 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
               stationId: currentStationId as string,
               color: getLiniaColorHex((codi.startsWith('F') ? 'F' : (circ as any).linia) as string),
               driver: assignment ? `${(assignment as any).cognoms}, ${(assignment as any).nom}` : 'Sense assignar',
-              driverName: (assignment as any)?.nom as string | undefined,
-              driverSurname: (assignment as any)?.cognoms as string | undefined,
+              driverName: (assignment as any)?.nom, driverSurname: (assignment as any)?.cognoms,
               torn: shift?.id || '---',
               shiftStartMin: getFgcMinutes(shift.inici_torn) || 0,
               shiftEndMin: getFgcMinutes(shift.final_torn) || 0,
               shiftDep: resolveStationId(shift.dependencia || '', shiftService),
               phones: driverPhones,
-              inici: (circ as any).inici as string | undefined,
-              final: (circ as any).final as string | undefined,
+              inici: (circ as any).inici, final: (circ as any).final,
               horaPas: formatFgcTime(displayMin),
               x, y
             });
             processedKeys.add(codi);
           }
         });
-      });
 
-      allShifts.forEach(shift => {
-        const shiftService = (shift.servei || '').toString();
-
-        let isShiftVisible = false;
-        if (selectedServei === 'Tots') {
-          isShiftVisible = true;
-        } else {
-          if (selectedServei === '400') isShiftVisible = shiftService === '400' || shiftService === 'S1';
-          else if (selectedServei === '500') isShiftVisible = shiftService === '500' || shiftService === 'S2';
-          else if (selectedServei === '100') isShiftVisible = shiftService === '100' || shiftService === 'L6';
-          else if (selectedServei === '0') isShiftVisible = shiftService === '0' || shiftService === 'L12';
-          else isShiftVisible = (shiftService === selectedServei);
-        }
-
-        if (!isShiftVisible) return;
-
+        // Stationary / Gap Handling
         const startMin = getFgcMinutes(shift.inici_torn);
         const endMin = getFgcMinutes(shift.final_torn);
 
@@ -544,13 +556,33 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
           if (!isWorking) {
             const shortTorn = getShortTornId(shift.id);
             const assignment = allDaily?.find(d => d.torn === shortTorn);
-            const rawLoc = (shift.dependencia || '').trim().toUpperCase();
+
+            // Use getSegments to find accurate location
+            const segs = getSegments(shift);
+            const currentSeg = segs.find(s => displayMin >= s.start && displayMin < s.end);
+
+            let rawLoc = (shift.dependencia || '').trim().toUpperCase();
+            let isStationaryTrain = false;
+
+            if (currentSeg && currentSeg.type === 'gap') {
+              rawLoc = (currentSeg.codi || '').trim().toUpperCase();
+              isStationaryTrain = true; // Drivers in gaps are typically in the train or at the platform
+            }
+
             const loc = resolveStationId(rawLoc, shiftService);
+
             if (loc && stationCoords[loc] && assignment) {
               const driverPhones = allPhones?.find(p => p.nomina === (assignment as any).empleat_id)?.phones || [];
               const coords = stationCoords[loc] || { x: 0, y: 0 };
+
+              // CRITICAL FIX: Classify as TRAIN if it's a stationary train gap, so it appears on the map
+              // But giving it ID 'DESCANS' might be confusing. Let's use 'SIT' or the gap code.
               currentPersonnel.push({
-                type: 'REST', id: 'DESCANS', linia: 'S/L', stationId: loc, color: '#53565A',
+                type: isStationaryTrain ? 'TRAIN' : 'REST',
+                id: isStationaryTrain ? 'EST' : 'DESCANS',
+                linia: 'S/L',
+                stationId: loc,
+                color: isStationaryTrain ? '#9ca3af' : '#53565A', // Grey for stationary
                 driver: `${(assignment as any).cognoms}, ${(assignment as any).nom}`,
                 driverName: (assignment as any).nom,
                 driverSurname: (assignment as any).cognoms,
@@ -560,7 +592,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                 shiftDep: resolveStationId(shift.dependencia || '', shiftService),
                 phones: driverPhones,
                 inici: loc, final: loc, horaPas: formatFgcTime(displayMin),
-                x: coords.x, y: coords.y
+                x: coords.x, y: coords.y - (isStationaryTrain ? 4 : 0), // Offset if train
+                label: isStationaryTrain ? 'EST' : undefined // Label for map
               });
             }
           }
@@ -587,33 +620,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
     return results[0] || null;
   };
 
-  const getSegments = (turn: any) => {
-    if (!turn) return [];
-    const startMin = getFgcMinutes(turn.inici_torn);
-    const endMin = getFgcMinutes(turn.final_torn);
-    if (startMin === null || endMin === null) return [];
 
-    const segments: any[] = [];
-    let currentPos = startMin;
-    const circs = turn.fullCirculations || [];
-    circs.forEach((circ: any, index: number) => {
-      const cStart = getFgcMinutes(circ.sortida);
-      const cEnd = getFgcMinutes(circ.arribada);
-      if (cStart !== null && cEnd !== null) {
-        if (cStart > currentPos) {
-          let locationCode = index === 0 ? (circ.machinistInici || turn.dependencia || '') : (circs[index - 1].machinistFinal || '');
-          segments.push({ start: currentPos, end: cStart, type: 'gap', codi: (locationCode || '').trim().toUpperCase() || 'DESCANS' });
-        }
-        segments.push({ start: cStart, end: cEnd, type: 'circ', codi: circ.codi, train: circ.train });
-        currentPos = Math.max(currentPos, cEnd);
-      }
-    });
-    if (currentPos < endMin) {
-      const lastLoc = circs.length > 0 ? circs[circs.length - 1].machinistFinal : turn.dependencia;
-      segments.push({ start: currentPos, end: endMin, type: 'gap', codi: (lastLoc || '').trim().toUpperCase() || 'FINAL' });
-    }
-    return segments;
-  };
 
   const handleSearch = async () => {
     if (!query) return;
