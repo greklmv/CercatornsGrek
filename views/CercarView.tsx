@@ -80,6 +80,9 @@ export const CercarView: React.FC = () => {
   useEffect(() => {
     if (searchType === SearchType.Estacio) {
       setStartTime(getCurrentTimeStr());
+      const now = new Date();
+      now.setHours(now.getHours() + 1);
+      setEndTime(`${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
     }
   }, [searchType]);
 
